@@ -9,7 +9,7 @@
 [English](#english) | [简体中文](#简体中文)
 
 ![OKF Spec](https://img.shields.io/badge/OKF-v0.2-2563eb)
-![Skill Version](https://img.shields.io/badge/Skill-v2.0-0f766e)
+![Skill Version](https://img.shields.io/badge/Skill-v2.1-0f766e)
 [![License](https://img.shields.io/badge/License-Apache--2.0-d97706)](https://github.com/fabricioctelles/skills/blob/main/LICENSE)
 
 </div>
@@ -53,7 +53,8 @@ the official OKF v0.2 specification.
 ### What This Skill Does
 
 - Creates conformant OKF bundles and concept documents.
-- Validates core conformance and selected OKF v0.2 field contracts.
+- Defines the v0.2 file structure and required/optional field shapes.
+- Validates required fields and the shape of optional v0.2 fields when present.
 - Records provenance, trust, freshness, lifecycle, and claim attribution.
 - Authors and reviews optional Attested Computation contracts.
 - Migrates v0.1 `timestamp` and `# Citations` conventions to v0.2.
@@ -71,11 +72,30 @@ the official OKF v0.2 specification.
 │   ├── examples.md           # Complete example bundles
 │   └── spec-v02.md           # Pinned OKF v0.2 implementation reference
 ├── scripts/
-│   └── validate.sh           # Lightweight OKF conformance validator
+│   ├── validate.sh           # Dependency-selecting validator entrypoint
+│   └── validate.py           # Structured OKF v0.2 validator
 └── tests/
     ├── fixtures/             # Valid, invalid, and legacy bundles
     └── test_validate.sh      # Validator regression tests
 ```
+
+### OKF v0.2 Bundle Structure
+
+```text
+<bundle-root>/
+├── index.md                  # Optional; root only may declare okf_version
+├── log.md                    # Optional; no frontmatter
+├── <concept>.md              # YAML frontmatter with required type
+├── <group>/
+│   ├── index.md              # No frontmatter
+│   └── <concept>.md
+└── <artifact>                # Optional .sql, .py, or other referenced file
+```
+
+Only `index.md` and `log.md` are reserved. Names such as `metrics/`,
+`computations/`, and `references/` are conventions, not mandatory directories.
+See the exact file and field rules in
+[`SKILL.md`](./SKILL.md#bundle-structure).
 
 ### Installation
 
@@ -109,20 +129,26 @@ Migrate this OKF v0.1 bundle to v0.2 without losing provenance.
 Review this Attested Computation contract without executing it.
 ```
 
-To run the bundled lightweight validator directly:
+To run the bundled structured validator:
 
 ```bash
 ./scripts/validate.sh /path/to/your/bundle
 ```
 
-The validator checks the three core conformance rules:
+The wrapper uses Python with PyYAML when available, or `uv` to run the declared
+dependency in isolation. It never silently skips YAML parsing.
 
-1. Every non-reserved Markdown file has YAML frontmatter.
-2. Every concept has a non-empty `type` field.
-3. Reserved `index.md` and `log.md` files follow their structural rules.
+The validator rejects malformed frontmatter, reserved-file structure,
+timestamps, provenance/trust/lifecycle families, and Attested Computation
+contracts. Missing recommended display fields, broken links, and legacy v0.1
+fallback fields remain non-blocking warnings because OKF explicitly permits
+them.
 
-Existing OKF linters and profile manifests can provide additional checks, but
-v0.1-era tooling should not be assumed to validate the new v0.2 field families.
+Run valid, invalid, compatibility, path, and multi-domain regression cases with:
+
+```bash
+./tests/test_validate.sh
+```
 
 ### OKF at a Glance
 
@@ -158,14 +184,16 @@ recognize.
 | [`references/spec-v02.md`](./references/spec-v02.md) | Pinned OKF v0.2 implementation reference |
 | [`references/examples.md`](./references/examples.md) | Provenance, lifecycle, and attestation examples |
 | [`references/conversion.md`](./references/conversion.md) | v0.1 migration and source conversion guides |
-| [`scripts/validate.sh`](./scripts/validate.sh) | Lightweight v0.2 command-line validator |
+| [`scripts/validate.py`](./scripts/validate.py) | Strict structured v0.2 validator |
+| [`scripts/validate.sh`](./scripts/validate.sh) | Portable validator entrypoint |
+| [`tests/test_validate.sh`](./tests/test_validate.sh) | Rule matrix and real-bundle regression suite |
 
 ### Version and Provenance
 
 | Item | Value |
 | --- | --- |
 | Current OKF target | `v0.2` |
-| Skill metadata version | `2.0` |
+| Skill metadata version | `2.1` |
 | Official specification | [`ad30107`](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/ad30107c31c06aec8a7d5636e0d1058118604e6f/SPEC.md) |
 | Original source | [`fabricioctelles/skills`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format) |
 | Unmodified v0.1 baseline | [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9) |
@@ -193,7 +221,8 @@ AI Agent 的组织知识表示格式。它使用带 YAML Frontmatter 的 Markdow
 ### 主要能力
 
 - 创建符合规范的 OKF 知识包和概念文档。
-- 校验核心合规规则和部分 OKF v0.2 字段契约。
+- 明确 v0.2 文件结构以及必填、可选字段形状。
+- 校验必填字段，以及已经出现的 v0.2 可选字段形状。
 - 记录来源、信任、新鲜度、生命周期和声明级引用。
 - 创建和审查可选的 Attested Computation 契约。
 - 将 v0.1 的 `timestamp` 和 `# Citations` 迁移到 v0.2。
@@ -211,11 +240,29 @@ AI Agent 的组织知识表示格式。它使用带 YAML Frontmatter 的 Markdow
 │   ├── examples.md           # 完整知识包示例
 │   └── spec-v02.md           # 固定版本的 OKF v0.2 实施参考
 ├── scripts/
-│   └── validate.sh           # 轻量级 OKF 合规校验脚本
+│   ├── validate.sh           # 自动选择依赖的校验入口
+│   └── validate.py           # 结构化 OKF v0.2 校验器
 └── tests/
     ├── fixtures/             # 合法、非法和旧版知识包
     └── test_validate.sh      # 校验器回归测试
 ```
+
+### OKF v0.2 知识包结构
+
+```text
+<bundle-root>/
+├── index.md                  # 可选；只有根索引可声明 okf_version
+├── log.md                    # 可选；禁止 Frontmatter
+├── <concept>.md              # YAML Frontmatter，type 必填
+├── <group>/
+│   ├── index.md              # 禁止 Frontmatter
+│   └── <concept>.md
+└── <artifact>                # 可选的 .sql、.py 或其他被引用文件
+```
+
+只有 `index.md` 和 `log.md` 是保留文件名。`metrics/`、`computations/`、
+`references/` 等目录属于约定，不是强制结构。准确的文件和字段规则见
+[`SKILL.md`](./SKILL.md#bundle-structure)。
 
 ### 安装
 
@@ -246,20 +293,24 @@ git clone https://github.com/doctormacky/okf-open-knowledge-format.git \
 审查这个 Attested Computation 契约，但不要执行它。
 ```
 
-也可以直接运行仓库内置的轻量级校验器：
+也可以直接运行仓库内置的结构化校验器：
 
 ```bash
 ./scripts/validate.sh /path/to/your/bundle
 ```
 
-该脚本检查 3 条核心合规规则：
+入口脚本优先使用已经安装 PyYAML 的 Python，也可以通过 `uv` 隔离运行声明的
+依赖；没有 YAML 解析器时会明确失败，不会跳过解析后假装通过。
 
-1. 每个非保留 Markdown 文件都包含 YAML Frontmatter。
-2. 每个概念都包含非空的 `type` 字段。
-3. 保留文件 `index.md` 和 `log.md` 符合各自的结构规则。
+校验器会阻断 Frontmatter、保留文件、时间戳、来源/信任/生命周期字段族和
+Attested Computation 契约错误。缺少推荐展示字段、断链和 v0.1 兼容字段仍属于
+非阻断警告，因为 OKF 规范明确允许这些情况。
 
-已有 OKF Linter 和 Profile Manifest 可以提供额外检查，但不能默认旧版工具已经
-覆盖 v0.2 新增的字段族。
+运行合法、非法、兼容性、特殊路径和多领域回归用例：
+
+```bash
+./tests/test_validate.sh
+```
 
 ### OKF 最小示例
 
@@ -292,14 +343,16 @@ The sum of all active subscriptions normalized to a monthly amount.
 | [`references/spec-v02.md`](./references/spec-v02.md) | 固定版本的 OKF v0.2 实施参考 |
 | [`references/examples.md`](./references/examples.md) | 来源、生命周期和 Attestation 示例 |
 | [`references/conversion.md`](./references/conversion.md) | v0.1 迁移和数据源转换指南 |
-| [`scripts/validate.sh`](./scripts/validate.sh) | 轻量级 v0.2 命令行校验器 |
+| [`scripts/validate.py`](./scripts/validate.py) | 结构化 v0.2 校验器 |
+| [`scripts/validate.sh`](./scripts/validate.sh) | 可移植的校验入口 |
+| [`tests/test_validate.sh`](./tests/test_validate.sh) | 逐规则矩阵与真实 bundle 回归测试 |
 
 ### 版本与来源
 
 | 项目 | 内容 |
 | --- | --- |
 | 当前适配的 OKF 版本 | `v0.2` |
-| Skill 元数据版本 | `2.0` |
+| Skill 元数据版本 | `2.1` |
 | 官方规范 | [`ad30107`](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/ad30107c31c06aec8a7d5636e0d1058118604e6f/SPEC.md) |
 | 最初上游来源 | [`fabricioctelles/skills`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format) |
 | 未改动的 v0.1 基线 | [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9) |

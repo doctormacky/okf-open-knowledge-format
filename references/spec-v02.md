@@ -18,19 +18,32 @@ An OKF bundle is a directory tree of UTF-8 Markdown files.
 - A concept consists of YAML frontmatter followed by a Markdown body.
 - A bundle can be a repository, archive, or subdirectory.
 
-Example:
-
 ```text
-bundle/
+<bundle-root>/
 ├── index.md
 ├── log.md
-├── metrics/
+├── <concept>.md
+├── <group>/
 │   ├── index.md
-│   └── revenue.md
-└── computations/
-    ├── index.md
-    └── revenue-ytd.md
+│   ├── log.md
+│   ├── <concept>.md
+│   └── <nested-group>/
+│       └── <concept>.md
+└── <referenced-artifact>
 ```
+
+- Root `index.md` is optional. It alone may have frontmatter, and only to
+  declare `okf_version: "0.2"`.
+- Nested `index.md` files have no frontmatter.
+- Every `log.md` has no frontmatter and groups entries beneath newest-first
+  `## YYYY-MM-DD` headings.
+- Every other Markdown file is a concept and therefore needs mapping
+  frontmatter with non-empty `type`.
+- Non-Markdown files may be stored and referenced by computation, executor, or
+  attester paths. They are not concepts.
+
+Only `index.md` and `log.md` are reserved filenames. All directory names are
+producer-defined.
 
 ## 2. Concept Frontmatter
 

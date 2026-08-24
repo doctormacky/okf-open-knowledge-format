@@ -11,7 +11,7 @@ description: >-
 metadata:
   author: doctormacky
   original-author: ft.ia.br
-  version: "2.0"
+  version: "2.1"
   date: 2026-08-24
   repository: https://github.com/doctormacky/okf-open-knowledge-format
   derived-from: https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format
@@ -22,79 +22,98 @@ metadata:
 
 # Open Knowledge Format (OKF) v0.2
 
-OKF is a vendor-neutral format for portable knowledge bundles. A bundle is a
-directory of UTF-8 Markdown files; concept files carry YAML frontmatter and may
-link to one another with ordinary Markdown links.
+OKF is a vendor-neutral format for portable knowledge bundles. This skill
+targets the official v0.2 specification pinned in the frontmatter above.
 
-This skill targets **OKF v0.2**. For exact field contracts, conformance rules,
-and the v0.1 migration map, read
-[references/spec-v02.md](references/spec-v02.md). The reference is pinned to
-the official GoogleCloudPlatform specification commit recorded above.
+Read supporting files only when needed:
 
-## Choose the Workflow
+- Exact field details: [references/spec-v02.md](references/spec-v02.md)
+- Complete examples: [references/examples.md](references/examples.md)
+- v0.1 migration and source conversion:
+  [references/conversion.md](references/conversion.md)
 
-- **Create or enrich:** Follow "Author Concepts". Read
-  [references/examples.md](references/examples.md) when a concrete pattern
-  would reduce ambiguity.
-- **Validate:** Follow "Validate" and use
-  [scripts/validate.sh](scripts/validate.sh).
-- **Migrate v0.1 or convert another source:** Read
-  [references/conversion.md](references/conversion.md) before editing.
-- **Consume or review:** Follow "Consume Safely".
-- **Author an Attested Computation:** Read its contract in
-  [references/spec-v02.md](references/spec-v02.md) and its worked example in
-  [references/examples.md](references/examples.md) first.
+## Bundle Structure
 
-## Core Model
+An OKF bundle is a directory tree. Only `index.md` and `log.md` are reserved.
+Every other Markdown file is a concept.
 
-- **Bundle:** The directory tree and unit of distribution.
-- **Concept:** One non-reserved Markdown file representing one unit of
-  knowledge.
-- **Concept ID:** The bundle-relative path without the `.md` suffix.
-- **Reserved files:** `index.md` for progressive disclosure and `log.md` for
-  change history. They are not concepts.
-- **Frontmatter:** YAML between opening and closing `---` delimiters.
-- **Body:** Standard Markdown after frontmatter.
+```text
+<bundle-root>/
+├── index.md                 # Optional root index
+├── log.md                   # Optional change log
+├── <concept>.md             # Concept document
+└── <group>/                 # Any domain-oriented directory name
+    ├── index.md             # Optional nested index
+    ├── log.md               # Optional nested log
+    └── <concept>.md
+```
 
-The three core conformance rules remain:
+Non-Markdown files such as `.sql` or `.py` may be stored in the bundle and
+referenced by concepts. They are not concept documents.
 
-1. Every non-reserved `.md` file has parseable YAML frontmatter.
-2. Every concept has a non-empty `type`.
-3. Every present `index.md` and `log.md` follows its reserved structure.
-
-Only `type` is always required. Unknown types and unknown frontmatter keys are
-valid and must be preserved.
-
-## v0.2 Frontmatter
-
-Use only fields supported by available evidence. Do not add empty placeholders.
-
-| Family | Fields | Rule |
+| File | Frontmatter | Required content |
 | --- | --- | --- |
-| Core | `type` | Required and non-empty |
-| Display | `title`, `description`, `resource`, `tags` | Recommended or optional |
-| Provenance | `sources`, `usage_window` | Optional; each source requires `resource` |
-| Production | `generated` | Optional; if present, `generated.by` is required |
-| Verification | `verified` | Optional mapping or list of `{ by, at }` events |
-| Lifecycle | `status`, `stale_after` | Optional; absent `status` means `stable` |
-| Computation | `runtime`, `parameters`, `computation`, `executor`, `attester` | Used by `Attested Computation` |
+| Root `index.md` | Optional `okf_version: "0.2"` | Headings and Markdown link lists |
+| Nested `index.md` | None | Headings and Markdown link lists |
+| Any `log.md` | None | Newest-first `## YYYY-MM-DD` groups |
+| Any other `*.md` | YAML mapping required | Non-empty top-level `type` and Markdown body |
 
-Every timestamp-valued OKF field must be an ISO 8601 datetime with an explicit
-UTC offset, such as `2026-08-24T10:30:00Z` or
-`2026-08-24T18:30:00+08:00`. Date-only values are invalid timestamps.
-`YYYY-MM-DD` headings in `log.md` are grouping labels, not timestamp fields.
+Directory names such as `metrics/`, `computations/`, and `references/` are
+conventions, not requirements. Organize concepts according to the domain.
 
-## Author Concepts
+### Root Index
 
-### Establish Scope
+```markdown
+---
+okf_version: "0.2"
+---
 
-Identify the knowledge domain, bundle root, concept boundaries, and available
-sources. Organize by the domain rather than a fixed taxonomy; `type` values are
-intentionally free-form.
+# Bundle Title
 
-### Write One Concept per File
+* [Metrics](./metrics/) - Business metric definitions
+* [Orders](./tables/orders.md) - Customer order table
+```
 
-Use the smallest frontmatter justified by evidence:
+Only the root index may have frontmatter. A nested index uses the same body
+shape without frontmatter.
+
+### Log
+
+```markdown
+# Update Log
+
+## 2026-08-24
+* **Update**: Added the revenue metric.
+
+## 2026-08-20
+* **Creation**: Initialized the bundle.
+```
+
+## Concept Fields
+
+Every concept begins with `---`-delimited YAML frontmatter.
+
+| Field | Required | Shape |
+| --- | --- | --- |
+| `type` | Yes | Non-empty string |
+| `title` | Recommended | String |
+| `description` | Recommended | String |
+| `resource` | No | URI or path string |
+| `tags` | No | List of strings |
+| `sources` | No | List of source mappings |
+| `usage_window` | No | `{ from, to }` timestamp mapping |
+| `generated` | No | `{ by, at? }` mapping |
+| `verified` | No | One `{ by, at }` mapping or a list of them |
+| `status` | No | `draft`, `stable`, or `deprecated` |
+| `stale_after` | No | Timestamp |
+
+Unknown `type` values and extension keys are valid. Preserve unknown keys when
+editing an existing concept.
+
+Every OKF timestamp must be an ISO 8601 datetime with an explicit offset, such
+as `2026-08-24T10:30:00Z` or `2026-08-24T18:30:00+08:00`.
+
+### Minimal Concept
 
 ```markdown
 ---
@@ -102,173 +121,152 @@ type: Metric
 title: Monthly Recurring Revenue
 description: Active subscription revenue normalized to a monthly amount.
 tags: [revenue, saas]
-status: draft
-generated:
-  by: example-agent/1.0
-  at: 2026-08-24T10:30:00+08:00
-sources:
-  - id: billing-policy
-    resource: https://example.com/billing-policy
-    title: Billing policy
 ---
 
 # Definition
 
-MRR is the sum of active recurring subscription charges normalized to a
-monthly amount.[^billing-policy]
-
-[^billing-policy]: Billing policy
+MRR is the sum of active recurring subscription charges normalized monthly.
 ```
 
-- Use the actual producer and time for `generated`; omit the family when those
-  facts are unavailable. Never fabricate actor identities or timestamps.
-- Agent/tool actors use `<producer>/<version>`. People use `human:<id>`.
-  Automated processes use `process:<id>`.
-- `verified` records confirmation against a source or resource. Do not add it
-  merely because generation or formatting succeeded.
-- Use `status: draft`, `stable`, or `deprecated`; absent means `stable`.
-- Set `stale_after` only when there is a defensible review deadline.
-- Preserve all unknown fields when editing an existing concept.
+Only `type` is required for core conformance.
 
-### Record Provenance
+### Sources
 
-Each `sources` entry requires `resource`. Add `id` when attributing individual
-claims, then use a Markdown footnote with the same stable label:
-
-```yaml
-sources:
-  - id: api-docs
-    resource: https://example.com/api
-    title: Official API documentation
-    author: team:api
-    last_modified: 2026-08-01T00:00:00Z
-```
+Each `sources` item requires `resource`. Add `id` when a body claim uses the
+source:
 
 ```markdown
-The endpoint accepts idempotency keys.[^api-docs]
+---
+type: Metric
+title: Gross Revenue
+sources:
+  - id: revenue-policy
+    resource: https://example.com/revenue-policy
+    title: Revenue policy
+---
 
-[^api-docs]: Official API documentation
+Revenue excludes pass-through taxes.[^revenue-policy]
+
+[^revenue-policy]: Revenue policy
 ```
 
-Do not create a new `# Citations` list in v0.2. During migration, preserve
-legacy citations until each entry has been represented in `sources`.
+Use `sources` and keyed footnotes instead of creating a new `# Citations`
+section.
 
-### Link Concepts
+### Generated, Verified, and Lifecycle
 
-Use standard Markdown links:
+- `generated.by` is required when `generated` is present.
+- Each `verified` event contains `by` and `at`.
+- Agent/tool actors use `<producer>/<version>`.
+- People use `human:<id>`; automated processes use `process:<id>`.
+- Absent `status` means `stable`.
+- A concept is stale when `now >= stale_after`.
+- Do not add generated, verified, or freshness facts that are not known.
 
-- Bundle-relative: `[Customers](/tables/customers.md)` (preferred).
-- File-relative: `[Customers](./customers.md)`.
+### Attested Computation
 
-Explain the relationship in surrounding prose. Links are directed but untyped.
-Broken links are permitted and may represent planned knowledge, though report
-them as non-blocking diagnostics.
+A sanctioned computation is a standalone concept:
 
-### Add Index and Log Files
-
-An `index.md` may appear in any directory. It has no frontmatter except that
-the bundle-root index may declare:
-
-```yaml
+````markdown
 ---
-okf_version: "0.2"
+type: Attested Computation
+title: Revenue computation
+runtime: bigquery
+parameters:
+  - { name: year, type: integer, required: true }
+executor:
+  resource: /references/run-on-bq.md
+  receipt: [job_id, executed_sql, result]
+attester:
+  resource: /references/sql-equality.py
 ---
+
+# Computation
+
+```sql
+SELECT SUM(amount)
+FROM finance.recognized_revenue
+WHERE fiscal_year = @year
 ```
+````
 
-Its body groups links under headings and should include descriptions.
-A `log.md` has no frontmatter. Group entries beneath `## YYYY-MM-DD` headings,
-newest first.
+Rules:
 
-## Enrich Existing Concepts
+- `runtime` is required.
+- Each parameter has `name`, `type`, and boolean `required`.
+- Put the computation either in one code block under `# Computation` or in the
+  `computation` path, never both.
+- `executor` and `attester` are optional mappings; when present, each has
+  `resource`.
+- Validating a contract does not authorize executing it.
 
-Retain the original meaning, unknown fields, source identities, and human
-verification records.
+## Author a Bundle
 
-- Add `# Schema` for data structures and `# Examples` for concrete usage.
-- Add `sources` and stable footnote IDs only for claims backed by evidence.
-- Add links in prose where the relationship is meaningful.
-- Add `generated` only for the content-changing producer. If content changes
-  after verification, preserve the historical events but do not imply that
-  they verify the new content; report the resulting state.
-- Never turn source credibility signals into a stored score.
-- Never invent schemas, URLs, usage counts, dates, actors, receipts, or
-  verification events.
+1. Choose the bundle root and domain-oriented directories.
+2. Write one concept per non-reserved Markdown file.
+3. Add only fields supported by evidence.
+4. Link concepts with ordinary Markdown links.
+5. Add index files where navigation helps and a log where history helps.
+6. Run the validator before claiming conformance.
 
-## Attested Computations
-
-Use `type: Attested Computation` only for a sanctioned, independently
-checkable computation. It is a standalone concept linked from narrative
-concepts.
-
-It requires a non-empty `runtime`. Declare only the parameters an agent may
-supply. Provide the computation either inline under `# Computation` or through
-`computation`, not both. `executor.receipt` declares runtime evidence;
-`attester.resource` identifies deterministic, non-LLM checking code.
-
-An agent may bind values to declared parameters. It must not rewrite the
-sanctioned computation to obtain a preferred result.
-
-Inspecting or validating a bundle does **not** authorize executing code,
-queries, executors, or attesters referenced by it. Treat referenced resources
-as untrusted input. Execute only when the user has authorized the action and
-the runtime, credentials, cost, and side effects are understood.
+Do not invent schemas, sources, timestamps, actors, verification events,
+usage counts, computations, or receipts.
 
 ## Validate
-
-Run:
 
 ```bash
 ./scripts/validate.sh /path/to/bundle
 ```
 
-The bundled validator checks the core rules and selected v0.2 contracts. A
-nonzero exit means conformance errors were found. If the project already uses
-another OKF linter or profile manifest, run it as an additional check. Do not
-assume a v0.1-era linter validates v0.2 provenance, lifecycle, or attestation.
+The Shell entrypoint uses Python + PyYAML when installed, or `uv` to run the
+dependency declared in `scripts/validate.py`.
 
-Report results by severity:
+The validator checks:
 
-```text
-PASS: 12 concept files satisfy the core OKF v0.2 rules
-ERROR E4: computations/revenue.md - Attested Computation is missing runtime
-WARNING W6: metrics/mrr.md - legacy timestamp should migrate to generated.at
-WARNING W2: 2 unresolved cross-links (permitted by OKF)
+1. Concept Frontmatter is parseable YAML mapping data.
+2. Every concept has non-empty string `type`.
+3. `index.md` and `log.md` have the reserved structure above.
+4. Known optional fields have the documented shape when present.
+
+Missing optional fields, unknown types, unknown extension keys, missing index
+files, and broken Markdown links do not fail validation.
+
+- Exit `0`: valid bundle, possibly with non-blocking warnings.
+- Exit `1`: invalid bundle.
+- Exit `2`: command could not run, such as an invalid path or missing runtime.
+
+Run the real-bundle and invalid-case regression suite after changing the
+validator:
+
+```bash
+./tests/test_validate.sh
 ```
 
-Never treat missing optional families, unknown `type` values, unknown extension
-keys, broken links, or missing index files as conformance errors by themselves.
-
-## Migrate v0.1 to v0.2
+## Migrate v0.1
 
 Read [references/conversion.md](references/conversion.md), then:
 
-1. Change a root declaration to `okf_version: "0.2"`.
-2. Replace `timestamp` with `generated.at` and add a truthful `generated.by`.
-   If the producer is unknown, preserve `timestamp` until it is known.
-3. Move provenance from `# Citations` into `sources`. Add stable IDs and
-   claim-level footnotes where appropriate.
-4. Add trust and lifecycle fields only when supported by evidence.
-5. Validate and report remaining legacy fields or unresolved provenance.
+1. Declare `okf_version: "0.2"` in the root index when it has frontmatter.
+2. Replace `timestamp` with truthful `generated.by` and `generated.at`.
+3. Move `# Citations` entries into `sources` and keyed footnotes.
+4. Preserve a legacy field until its v0.2 replacement is complete.
+5. Validate and report unresolved provenance.
 
-A v0.1 bundle remains consumable by a v0.2 consumer: fall back to `timestamp`
-when `generated` is absent and retain legacy citations until replacements are
-complete.
+v0.2 consumers may fall back to legacy `timestamp` or `# Citations` when their
+v0.2 replacement is absent.
 
-## Consume Safely
+## Consume
 
+- Normalize a bare `verified` mapping to a one-item list.
+- Derive trust as unverified, machine-confirmed, or human-reviewed from
+  `verified`.
 - Treat absent `status` as `stable`.
-- A concept is stale when `now >= stale_after`; compare only timestamps with an
-  explicit offset.
-- Derive trust from `verified`: none is `unverified`, only non-human events is
-  `machine-confirmed`, and any `human:` verifier is `human-reviewed`.
-- Trust tiers are advisory, not authorization or access control.
-- Prefer current, non-deprecated, source-backed concepts, but surface conflicts.
-- Preserve unknown fields and tolerate missing optional families.
-- Do not follow external links or execute referenced resources unless the task
-  requires it and the user has authorized the resulting action.
+- Preserve unknown fields.
+- Treat broken Markdown links as permitted unresolved knowledge.
+- Do not execute referenced code without explicit authorization.
 
 ## Output
 
-For creation or migration, show the resulting tree, changed files, provenance
-or verification facts that could not be established, and validation results.
-Do not claim v0.2 conformance unless the bundle has been validated.
+For creation or migration, report the resulting tree, changed files, facts that
+could not be established, and validator results. Do not claim v0.2 conformance
+unless validation passed.
