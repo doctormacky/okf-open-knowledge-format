@@ -1,141 +1,237 @@
-# Converting Sources to OKF
+# Converting and Migrating to OKF v0.2
 
-Guides for transforming existing knowledge into conformant OKF bundles.
+Use this guide when migrating an OKF v0.1 bundle or converting another
+knowledge source. Preserve information first; normalize only when the target
+field can be populated truthfully.
 
+## General Conversion Workflow
+
+1. Inventory source files, metadata, links, attachments, and source identities.
+2. Define the bundle root and target concept boundaries.
+3. Map source metadata to OKF fields without inventing values.
+4. Record conversion provenance with `generated` and `sources` when known.
+5. Convert relationships to standard Markdown links.
+6. Generate `index.md` files and an optional `log.md`.
+7. Run `scripts/validate.sh <bundle>`.
+8. Report fields, actors, timestamps, or sources that could not be resolved.
+
+## Migrate OKF v0.1 to v0.2
+
+### 1. Declare the version
+
+If the root `index.md` declares a version, update only that value:
+
+```yaml
 ---
-
-## From Notion Export
-
-Notion exports as markdown with properties in YAML-like format.
-
-### Steps
-
-1. **Export** from Notion as Markdown & CSV
-2. **Clean filenames** — remove UUID suffixes (`Page Name abc123def.md` → `page-name.md`)
-3. **Map properties to frontmatter:**
-
-| Notion Property | OKF Field |
-|-----------------|-----------|
-| Type (select) | `type` (required) |
-| Name | `title` |
-| Tags (multi-select) | `tags` |
-| Last Edited | `timestamp` |
-| URL | `resource` |
-
-4. **Convert links** — Notion uses `[Page Name](Page%20Name%20abc123def.md)`. Convert to clean relative paths: `[Page Name](./page-name.md)`
-5. **Remove Notion artifacts** — empty toggle blocks, breadcrumb headers, cover image references
-6. **Add missing `type` field** — if Notion had no "Type" property, ask the user what type to assign
-
-### Edge cases
-
-- Notion databases: each row becomes a concept. Database title becomes the directory name.
-- Nested pages: respect the hierarchy. Child pages go in subdirectories.
-- Inline databases: flatten into a list in the parent concept's body.
-- Notion formulas/rollups: drop them — they don't translate to static markdown.
-
+okf_version: "0.2"
 ---
+```
 
-## From Obsidian Vault
+Do not add frontmatter to nested index files.
 
-Obsidian vaults are already close to OKF. Main differences: wikilinks and potentially missing `type` field.
+### 2. Replace `timestamp`
 
-### Steps
+v0.2 supersedes `timestamp` with `generated.at` and an actor:
 
-1. **Convert wikilinks to standard links:**
-   - `[[Note Name]]` → `[Note Name](./note-name.md)`
-   - `[[Note Name|Display Text]]` → `[Display Text](./note-name.md)`
-   - `[[Note Name#Heading]]` → `[Note Name](./note-name.md#heading)`
+```yaml
+# v0.1
+timestamp: 2026-05-28T14:30:00Z
 
-2. **Ensure `type` field exists** in every frontmatter block. Common mappings:
+# v0.2
+generated:
+  by: process:legacy-import
+  at: 2026-05-28T14:30:00Z
+```
 
-| Obsidian pattern | Suggested OKF type |
-|------------------|--------------------|
-| Daily notes | `Log` |
-| MOC / index note | Convert to `index.md` (reserved file) |
-| Permanent notes | `Reference` |
-| Literature notes | `Reference` |
-| Project notes | `Playbook` or domain-specific |
+Use the real original actor when known. `process:legacy-import` is appropriate
+only when that named process actually performed the import. If the actor is
+unknown, retain the legacy `timestamp` and report the unresolved migration;
+v0.2 consumers may use it as a fallback.
 
-3. **Convert tags:**
-   - Inline `#tag` → move to frontmatter `tags: [tag]`
-   - Nested `#parent/child` → flatten to `tags: [parent, child]` or keep as `parent/child`
+Do not use the migration time as the original content-change time. If the
+migration itself meaningfully rewrites content, use its real time and actor and
+preserve the original timestamp in an extension field only when the user wants
+that history retained.
 
-4. **Handle embeds:**
-   - `![[Note]]` — convert to a regular link or inline the content
-   - `![[image.png]]` — keep as standard markdown image `![](./image.png)`
+### 3. Replace `# Citations`
 
-5. **Remove Obsidian-specific syntax:**
-   - `%%comments%%` → remove
-   - `> [!callout]` → convert to blockquote or heading
-   - Dataview queries → remove (dynamic, not portable)
+Convert each legacy citation into a `sources` entry:
 
-### What to keep as-is
+```markdown
+# v0.1 body
 
-- Standard markdown formatting (headings, lists, tables, code blocks)
-- Existing YAML frontmatter (just add `type` if missing)
-- Standard markdown links (already OKF-compatible)
-- Mermaid diagrams (standard markdown fenced blocks)
+# Citations
 
----
+[1] [Billing policy](https://example.com/billing)
+```
 
-## From CSV / Spreadsheet
+```yaml
+# v0.2 frontmatter
+sources:
+  - id: billing-policy
+    resource: https://example.com/billing
+    title: Billing policy
+```
 
-Each row becomes one concept document.
+For a claim supported by that source:
 
-### Steps
+```markdown
+One-time setup fees are excluded.[^billing-policy]
 
-1. **Identify column mapping:**
+[^billing-policy]: Billing policy
+```
 
-| Column role | Maps to |
-|-------------|---------|
-| Primary identifier / name | Filename (slugified) |
-| Category / kind | `type` field |
-| Short description | `description` field |
-| Tags / labels | `tags` field |
-| URL / link | `resource` field |
-| Last modified date | `timestamp` field |
-| All other columns | Body content (as table or sections) |
+Use stable, descriptive, unique IDs. Do not infer which claim a citation
+supports when the legacy document does not say. In that case, add the source to
+frontmatter, keep the legacy citation section until review, and report the
+ambiguity.
 
-2. **Generate one `.md` per row:**
+### 4. Add optional 0.2 families selectively
+
+- Add `status` only when lifecycle state is known.
+- Add `stale_after` only when an explicit review deadline exists.
+- Add `verified` only for an actual check against a source or resource.
+- Add source credibility signals only when measured or supplied.
+- Do not turn ordinary code snippets into Attested Computations. Use that type
+  only for a sanctioned contract with stable execution and verification
+  semantics.
+
+### 5. Validate compatibility
+
+Confirm that:
+
+- All timestamp-valued 0.2 fields have an explicit UTC offset.
+- Every `sources` entry has `resource`.
+- Every footnote used for source attribution has a matching `sources[].id`.
+- `generated.by` and `verified[].by` use the actor convention.
+- Only the root index carries `okf_version: "0.2"`.
+- No legacy field was removed before its replacement was complete.
+
+## Convert a Notion Export
+
+Notion exports pages as Markdown and databases as Markdown plus CSV.
+
+### Mapping
+
+| Notion data | OKF v0.2 target |
+| --- | --- |
+| Type property | `type` |
+| Page name | `title` and slugged filename |
+| Summary property | `description` |
+| Tags / multi-select | `tags` |
+| Canonical asset URL | `resource` |
+| Exported page URL | `sources[].resource` |
+| Last edited time | `sources[].last_modified` |
+| Conversion process | `generated.by` |
+| Conversion time | `generated.at` |
+
+### Procedure
+
+1. Remove Notion UUID suffixes from filenames while keeping a mapping from old
+   paths to new paths.
+2. Convert properties to YAML frontmatter.
+3. Add a source entry for the original page when its URL is available.
+4. Convert Notion links to the renamed relative Markdown paths.
+5. Preserve nested pages as subdirectories when the hierarchy is meaningful.
+6. Remove export-only artifacts such as empty toggles and cover-image metadata.
+7. Ask for `type` when it cannot be derived reliably.
+
+Notion formulas and rollups are evaluated export artifacts, not portable
+definitions. Preserve their displayed value only when useful, and do not model
+them as Attested Computations unless the executable formula and verification
+contract are actually available.
+
+## Convert an Obsidian Vault
+
+Obsidian content is close to OKF but may use syntax outside portable Markdown.
+
+### Links and embeds
+
+- `[[Note Name]]` -> `[Note Name](./note-name.md)`
+- `[[Note Name|Display Text]]` -> `[Display Text](./note-name.md)`
+- `[[Note Name#Heading]]` -> `[Note Name](./note-name.md#heading)`
+- `![[image.png]]` -> `![](./image.png)`
+- `![[Note Name]]` -> a link or explicitly inlined content
+
+Keep a path-resolution map. Do not guess between duplicate note names; report
+ambiguous wikilinks.
+
+### Frontmatter
+
+- Preserve all existing unknown keys.
+- Ensure every concept has a non-empty `type`.
+- Move inline `#tags` to `tags` only when they are actual tags rather than
+  prose or headings.
+- Map a genuine original creation/edit actor to `generated` when known.
+- Turn external source metadata into `sources` and keyed footnotes.
+- Treat MOC/index notes as `index.md` only if they are directory listings;
+  otherwise retain them as ordinary concepts.
+
+Dynamic Dataview queries do not become Attested Computations automatically.
+Preserve them as examples or source text unless there is a sanctioned runtime,
+declared parameters, executor receipt, and deterministic attester.
+
+## Convert CSV or a Spreadsheet
+
+Each row usually becomes one concept.
+
+### Mapping
+
+| Source column role | OKF target |
+| --- | --- |
+| Primary identifier / name | Slugged filename and `title` |
+| Category / kind | `type` |
+| Short summary | `description` |
+| Labels | `tags` |
+| Canonical asset URL | `resource` |
+| Source row or sheet URL | `sources[].resource` |
+| Source modified time | `sources[].last_modified` |
+| Other stable values | Body table or domain-specific extension fields |
+
+### Template
 
 ```markdown
 ---
-type: {category_column}
-title: {name_column}
-description: {description_column}
-tags: [{tag1}, {tag2}]
-timestamp: {date_column}T00:00:00Z
+type: Product
+title: Example Product
+description: Short source-backed description.
+tags: [catalog]
+generated:
+  by: process:spreadsheet-import
+  at: 2026-08-24T10:30:00Z
+sources:
+  - id: catalog-row
+    resource: https://example.com/catalog#row-42
+    title: Product catalog, row 42
 ---
 
-# {name_column}
+# Details
 
 | Field | Value |
-|-------|-------|
-| Column3 | {value} |
-| Column4 | {value} |
+| --- | --- |
+| SKU | EXAMPLE-42 |
 ```
 
-3. **Generate index.md** from the full list:
-
-```markdown
-# {Sheet Name}
-
-- [{row1_name}](./{row1_slug}.md) - {row1_description}
-- [{row2_name}](./{row2_slug}.md) - {row2_description}
-```
-
-4. **Generate log.md** with creation entry:
-
-```markdown
-# Update Log
-
-## {today_iso8601}
-- **Creation**: Generated {N} concepts from spreadsheet import.
-```
+Use the real process identifier and time. Omit `generated` rather than copying
+placeholder values.
 
 ### Edge cases
 
-- Empty cells: omit the field entirely (don't write empty strings)
-- Multi-value cells (comma-separated): parse into YAML list for `tags`
-- Very long text cells: put in body as a section, not in frontmatter
-- Duplicate names: append a disambiguator (e.g., `widget-v1.md`, `widget-v2.md`)
+- Omit empty cells rather than writing empty YAML keys.
+- Parse multi-value cells into a YAML list only when the delimiter is known.
+- Put long text in the body, not frontmatter.
+- Disambiguate duplicate filenames deterministically.
+- Preserve row identifiers so regenerated concepts can be matched.
+- Do not interpret calculated cells as attested computations without the
+  calculation contract and deterministic verification path.
+
+## Post-conversion Review
+
+After structural validation, manually review:
+
+- Whether each concept boundary makes sense to a human reader.
+- Whether provenance points to the actual source rather than a nearby page.
+- Whether claim footnotes join to the correct source IDs.
+- Whether generated and verified actors describe real events.
+- Whether deprecated or stale concepts are surfaced rather than silently used.
+- Whether any executable resource was copied without an explicit trust review.

@@ -1,424 +1,274 @@
 ---
 name: okf-open-knowledge-format
-description: >
-  Create, validate, and enrich Open Knowledge Format (OKF) bundles — the open
-  spec for representing organizational knowledge as markdown files with YAML
-  frontmatter. Use when the user mentions 'OKF', 'Open Knowledge Format',
-  'knowledge bundle', 'OKF bundle', 'create a knowledge base for agents',
-  'validate OKF', 'convert to OKF', 'enrich knowledge docs', 'agent-readable
-  knowledge', 'LLM wiki', 'knowledge catalog', 'kcmd', or wants to structure
-  knowledge as markdown files for AI agent consumption. Also use when the user
-  has a directory of markdown files and wants to make them interoperable or
-  conformant with the OKF standard. Even for simple requests like 'make this
-  folder OKF conformant' — the skill has critical structural rules the agent
-  needs.
+description: >-
+  Create, inspect, validate, enrich, consume, or migrate Open Knowledge Format
+  (OKF) v0.2 bundles: Markdown knowledge bases with YAML frontmatter,
+  provenance, trust, lifecycle, and optional attested computations. Use when
+  the user explicitly mentions OKF, Open Knowledge Format, an OKF bundle,
+  agent-readable knowledge, an LLM wiki that should conform to OKF, or asks to
+  convert an existing knowledge collection to or from OKF. Do not trigger for
+  ordinary Markdown editing that has no OKF conformance requirement.
 metadata:
-  author: ft.ia.br
-  version: "1.1"
-  date: 2026-06-17
-  repository: https://github.com/fabricioctelles/skills
+  author: doctormacky
+  original-author: ft.ia.br
+  version: "2.0"
+  date: 2026-08-24
+  repository: https://github.com/doctormacky/okf-open-knowledge-format
+  derived-from: https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format
+  specification: https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/ad30107c31c06aec8a7d5636e0d1058118604e6f/SPEC.md
   license: Apache-2.0
   category: library-and-api-reference
 ---
 
-# Open Knowledge Format (OKF)
+# Open Knowledge Format (OKF) v0.2
 
-OKF is a vendor-neutral, open spec (v0.1, announced June 12, 2026 by Sam McVeety & Amir Hormati at Google Cloud) for representing knowledge as a directory of markdown files with YAML frontmatter. No SDK required — if you can `cat` a file, you can read OKF.
+OKF is a vendor-neutral format for portable knowledge bundles. A bundle is a
+directory of UTF-8 Markdown files; concept files carry YAML frontmatter and may
+link to one another with ordinary Markdown links.
 
-It formalizes the "LLM Wiki" pattern ([Karpathy's gist](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f)) into an interoperable format: wikis written by different producers can be consumed by different agents without translation.
+This skill targets **OKF v0.2**. For exact field contracts, conformance rules,
+and the v0.1 migration map, read
+[references/spec-v02.md](references/spec-v02.md). The reference is pinned to
+the official GoogleCloudPlatform specification commit recorded above.
 
-For the full spec, see [references/spec-v01.md](references/spec-v01.md).
+## Choose the Workflow
 
-### Design Principles
+- **Create or enrich:** Follow "Author Concepts". Read
+  [references/examples.md](references/examples.md) when a concrete pattern
+  would reduce ambiguity.
+- **Validate:** Follow "Validate" and use
+  [scripts/validate.sh](scripts/validate.sh).
+- **Migrate v0.1 or convert another source:** Read
+  [references/conversion.md](references/conversion.md) before editing.
+- **Consume or review:** Follow "Consume Safely".
+- **Author an Attested Computation:** Read its contract in
+  [references/spec-v02.md](references/spec-v02.md) and its worked example in
+  [references/examples.md](references/examples.md) first.
 
-1. **Minimally opinionated** — Only `type` is required. The spec defines interoperability surface, not content model.
-2. **Producer/consumer independence** — Who writes and who reads are decoupled. Human-authored bundles feed agents; LLM-generated bundles are browsed by humans.
-3. **Format, not platform** — No cloud, SDK, or vendor dependency. Value comes from how many parties speak it.
+## Core Model
 
----
+- **Bundle:** The directory tree and unit of distribution.
+- **Concept:** One non-reserved Markdown file representing one unit of
+  knowledge.
+- **Concept ID:** The bundle-relative path without the `.md` suffix.
+- **Reserved files:** `index.md` for progressive disclosure and `log.md` for
+  change history. They are not concepts.
+- **Frontmatter:** YAML between opening and closing `---` delimiters.
+- **Body:** Standard Markdown after frontmatter.
 
-## Key Terminology
+The three core conformance rules remain:
 
-- **Bundle** — A directory tree of `.md` files. The unit of distribution (git repo, tarball, or subdirectory).
-- **Concept** — One markdown file = one unit of knowledge (table, metric, playbook, API, etc.)
-- **Concept ID** — File path within the bundle, minus `.md` suffix. Example: `tables/users.md` → ID `tables/users`
-- **Frontmatter** — YAML block between `---` delimiters at file top.
-- **Body** — Everything after the frontmatter. Standard markdown.
-- **Link** — Standard markdown link expressing a relationship between concepts.
-- **Citation** — Link to an external source backing a claim in the body.
+1. Every non-reserved `.md` file has parseable YAML frontmatter.
+2. Every concept has a non-empty `type`.
+3. Every present `index.md` and `log.md` follows its reserved structure.
 
----
+Only `type` is always required. Unknown types and unknown frontmatter keys are
+valid and must be preserved.
 
-## Quick Reference — Frontmatter Fields
+## v0.2 Frontmatter
 
-| Field | Required? | Description |
-|-------|-----------|-------------|
-| `type` | **YES** | Kind of concept (free-form string, e.g. `BigQuery Table`, `Metric`, `Playbook`, `API Endpoint`) |
-| `title` | Recommended | Human-readable display name |
-| `description` | Recommended | One-sentence summary |
-| `resource` | Recommended | URI identifying the underlying asset (omit for abstract concepts) |
-| `tags` | Optional | YAML list for cross-cutting categorization |
-| `timestamp` | Optional | ISO 8601 datetime of last meaningful change |
+Use only fields supported by available evidence. Do not add empty placeholders.
 
-Additional producer-defined keys are allowed. Never reject unknown fields.
+| Family | Fields | Rule |
+| --- | --- | --- |
+| Core | `type` | Required and non-empty |
+| Display | `title`, `description`, `resource`, `tags` | Recommended or optional |
+| Provenance | `sources`, `usage_window` | Optional; each source requires `resource` |
+| Production | `generated` | Optional; if present, `generated.by` is required |
+| Verification | `verified` | Optional mapping or list of `{ by, at }` events |
+| Lifecycle | `status`, `stale_after` | Optional; absent `status` means `stable` |
+| Computation | `runtime`, `parameters`, `computation`, `executor`, `attester` | Used by `Attested Computation` |
 
-## Reserved Filenames
+Every timestamp-valued OKF field must be an ISO 8601 datetime with an explicit
+UTC offset, such as `2026-08-24T10:30:00Z` or
+`2026-08-24T18:30:00+08:00`. Date-only values are invalid timestamps.
+`YYYY-MM-DD` headings in `log.md` are grouping labels, not timestamp fields.
 
-| File | Purpose | Has frontmatter? |
-|------|---------|-----------------|
-| `index.md` | Directory listing for progressive disclosure | NO* |
-| `log.md` | Change history, newest first | NO |
+## Author Concepts
 
-*Exception: bundle-root `index.md` MAY have frontmatter with `okf_version: "0.1"` to declare spec version.
+### Establish Scope
 
-## Conventional Body Headings
+Identify the knowledge domain, bundle root, concept boundaries, and available
+sources. Organize by the domain rather than a fixed taxonomy; `type` values are
+intentionally free-form.
 
-| Heading | When to use |
-|---------|-------------|
-| `# Schema` | Data assets — describe columns/fields |
-| `# Examples` | Show concrete usage (code blocks, queries) |
-| `# Citations` | List external sources backing claims (numbered) |
+### Write One Concept per File
 
----
-
-## Create a Bundle
-
-When the user wants to create an OKF bundle from scratch:
-
-### 1. Determine scope and structure
-
-Ask: What knowledge are we capturing? (tables, metrics, APIs, playbooks, etc.)
-Organize into a directory tree that makes sense for the domain.
-
-### 2. Create concept documents
-
-Each concept = one `.md` file. Minimal conformant example:
+Use the smallest frontmatter justified by evidence:
 
 ```markdown
 ---
 type: Metric
 title: Monthly Recurring Revenue
-description: Sum of all active subscription revenue normalized to monthly.
+description: Active subscription revenue normalized to a monthly amount.
 tags: [revenue, saas]
-timestamp: 2026-06-13T10:00:00Z
+status: draft
+generated:
+  by: example-agent/1.0
+  at: 2026-08-24T10:30:00+08:00
+sources:
+  - id: billing-policy
+    resource: https://example.com/billing-policy
+    title: Billing policy
 ---
 
-# Monthly Recurring Revenue (MRR)
+# Definition
 
-## Definition
+MRR is the sum of active recurring subscription charges normalized to a
+monthly amount.[^billing-policy]
 
-Sum of all active subscriptions normalized to a monthly amount.
-Excludes one-time fees and overages.
-
-## Formula
-
-`MRR = Σ(active_subscription_monthly_value)`
-
-## Related
-
-- [Churn Rate](./churn.md) uses MRR as denominator
-- [ARR](./arr.md) = MRR × 12
+[^billing-policy]: Billing policy
 ```
 
-For more examples across domains, see [references/examples.md](references/examples.md).
+- Use the actual producer and time for `generated`; omit the family when those
+  facts are unavailable. Never fabricate actor identities or timestamps.
+- Agent/tool actors use `<producer>/<version>`. People use `human:<id>`.
+  Automated processes use `process:<id>`.
+- `verified` records confirmation against a source or resource. Do not add it
+  merely because generation or formatting succeeded.
+- Use `status: draft`, `stable`, or `deprecated`; absent means `stable`.
+- Set `stale_after` only when there is a defensible review deadline.
+- Preserve all unknown fields when editing an existing concept.
 
-### 3. Cross-link concepts
+### Record Provenance
 
-Use standard markdown links. Two forms:
+Each `sources` entry requires `resource`. Add `id` when attributing individual
+claims, then use a Markdown footnote with the same stable label:
 
-- **Absolute** (bundle-relative, starts with `/`): `[customers](/tables/customers.md)` — **preferred** (stable when files move)
-- **Relative**: `[churn](./churn.md)`
-
-Links assert relationships. The kind of relationship is conveyed by surrounding prose, not by the link syntax. Broken links are explicitly permitted — they represent knowledge not yet written.
-
-### 4. Generate index.md
-
-Place in any directory for progressive disclosure. No frontmatter. Format:
+```yaml
+sources:
+  - id: api-docs
+    resource: https://example.com/api
+    title: Official API documentation
+    author: team:api
+    last_modified: 2026-08-01T00:00:00Z
+```
 
 ```markdown
-# Metrics
+The endpoint accepts idempotency keys.[^api-docs]
 
-- [MRR](./mrr.md) - Monthly recurring revenue
-- [Churn](./churn.md) - Monthly churn rate
-- [NPS](./nps.md) - Net Promoter Score
+[^api-docs]: Official API documentation
 ```
 
-Entries should include the description from the linked concept's frontmatter.
+Do not create a new `# Citations` list in v0.2. During migration, preserve
+legacy citations until each entry has been represented in `sources`.
 
-### 5. Generate log.md (optional)
+### Link Concepts
 
-Chronological change history, newest first, ISO 8601 date headings:
+Use standard Markdown links:
 
-```markdown
-# Update Log
+- Bundle-relative: `[Customers](/tables/customers.md)` (preferred).
+- File-relative: `[Customers](./customers.md)`.
 
-## 2026-06-13
-- **Creation**: Added MRR, Churn, and NPS metrics.
-- **Creation**: Established directory structure.
+Explain the relationship in surrounding prose. Links are directed but untyped.
+Broken links are permitted and may represent planned knowledge, though report
+them as non-blocking diagnostics.
 
-## 2026-06-10
-- **Initialization**: Bundle created.
+### Add Index and Log Files
+
+An `index.md` may appear in any directory. It has no frontmatter except that
+the bundle-root index may declare:
+
+```yaml
+---
+okf_version: "0.2"
+---
 ```
 
-The bold leading word (`**Update**`, `**Creation**`, `**Deprecation**`) is convention, not requirement.
+Its body groups links under headings and should include descriptions.
+A `log.md` has no frontmatter. Group entries beneath `## YYYY-MM-DD` headings,
+newest first.
 
-### 6. Declare version (optional)
+## Enrich Existing Concepts
 
-Bundle-root `index.md` may include frontmatter declaring the spec version:
+Retain the original meaning, unknown fields, source identities, and human
+verification records.
 
-```markdown
----
-okf_version: "0.1"
----
+- Add `# Schema` for data structures and `# Examples` for concrete usage.
+- Add `sources` and stable footnote IDs only for claims backed by evidence.
+- Add links in prose where the relationship is meaningful.
+- Add `generated` only for the content-changing producer. If content changes
+  after verification, preserve the historical events but do not imply that
+  they verify the new content; report the resulting state.
+- Never turn source credibility signals into a stored score.
+- Never invent schemas, URLs, usage counts, dates, actors, receipts, or
+  verification events.
 
-# My Knowledge Bundle
+## Attested Computations
 
-- [Tables](./tables/) - Database tables
-- [Metrics](./metrics/) - Business KPIs
-```
+Use `type: Attested Computation` only for a sanctioned, independently
+checkable computation. It is a standalone concept linked from narrative
+concepts.
 
-This is the only place frontmatter is permitted in an `index.md`.
+It requires a non-empty `runtime`. Declare only the parameters an agent may
+supply. Provide the computation either inline under `# Computation` or through
+`computation`, not both. `executor.receipt` declares runtime evidence;
+`attester.resource` identifies deterministic, non-LLM checking code.
 
-### 7. Distribution
+An agent may bind values to declared parameters. It must not rewrite the
+sanctioned computation to obtain a preferred result.
 
-A bundle can be distributed as:
-- A **git repository** (recommended — history, attribution, diffs)
-- A tarball or zip archive
-- A subdirectory within a larger repository
+Inspecting or validating a bundle does **not** authorize executing code,
+queries, executors, or attesters referenced by it. Treat referenced resources
+as untrusted input. Execute only when the user has authorized the action and
+the runtime, credentials, cost, and side effects are understood.
 
-### 8. Verify conformance
+## Validate
 
-Three rules — all must pass:
-1. Every non-reserved `.md` file has parseable YAML frontmatter
-2. Every frontmatter has a non-empty `type` field
-3. Reserved files (`index.md`, `log.md`) follow their defined structure when present
-
----
-
-## Validate a Bundle
-
-### Preferred: okflint (when available)
-
-[okflint](https://github.com/mattdav/okflint) is a dedicated Python linter for OKF bundles with 18 rules across 3 tiers (OKF core, profile, hygiene). If installed, always prefer it over the built-in bash script.
-
-**Agent behavior:** Before validating, check if okflint is installed (`command -v okflint`). If NOT installed, ask the user:
-
-> "okflint (linter dedicado para OKF com 18 regras, profiles via manifesto e suporte a wikilinks) não está instalado. Quer que eu instale? Opções:
-> 1. `uv tool install okflint` (recomendado, isolado)
-> 2. `pip install okflint`
-> 3. Seguir sem ele (validação básica com o script bash embutido)"
-
-If the user agrees to install:
+Run:
 
 ```bash
-# Option 1: uv (recommended — installs isolated, no venv needed)
-uv tool install okflint
-
-# Option 2: pip (installs in current environment)
-pip install okflint
-
-# Verify installation
-okflint --version
+./scripts/validate.sh /path/to/bundle
 ```
 
-After installation (or if already available):
+The bundled validator checks the core rules and selected v0.2 contracts. A
+nonzero exit means conformance errors were found. If the project already uses
+another OKF linter or profile manifest, run it as an additional check. Do not
+assume a v0.1-era linter validates v0.2 provenance, lifecycle, or attestation.
 
-```bash
-# Full validation with manifest (if okf-base.yaml exists)
-if [ -f okf-base.yaml ]; then
-  okflint validate --manifest okf-base.yaml ./bundle/
-else
-  # Core OKF validation only (no manifest needed)
-  okflint validate ./bundle/
-fi
+Report results by severity:
+
+```text
+PASS: 12 concept files satisfy the core OKF v0.2 rules
+ERROR E4: computations/revenue.md - Attested Computation is missing runtime
+WARNING W6: metrics/mrr.md - legacy timestamp should migrate to generated.at
+WARNING W2: 2 unresolved cross-links (permitted by OKF)
 ```
 
-**okflint advantages over the built-in script:**
-- Manifest-driven profiles (enforce custom required fields, status vocabularies, per-type constraints)
-- Wikilink resolution against full Obsidian vault
-- JSON output (`--json`) for CI pipeline parsing
-- Detects broken markdown links and ambiguous wikilinks
-- Exit codes: `0` = pass, `1` = conformance failure, `2` = bad manifest
+Never treat missing optional families, unknown `type` values, unknown extension
+keys, broken links, or missing index files as conformance errors by themselves.
 
-### Fallback: built-in bash script
+## Migrate v0.1 to v0.2
 
-When okflint is not installed, use [scripts/validate.sh](scripts/validate.sh) which checks the 3 core conformance rules.
+Read [references/conversion.md](references/conversion.md), then:
 
-When asked to validate, check the 3 conformance rules. Report:
+1. Change a root declaration to `okf_version: "0.2"`.
+2. Replace `timestamp` with `generated.at` and add a truthful `generated.by`.
+   If the producer is unknown, preserve `timestamp` until it is known.
+3. Move provenance from `# Citations` into `sources`. Add stable IDs and
+   claim-level footnotes where appropriate.
+4. Add trust and lifecycle fields only when supported by evidence.
+5. Validate and report remaining legacy fields or unresolved provenance.
 
-```
-✅ PASS: 12/12 concept files have valid frontmatter with type field
-✅ PASS: index.md follows list structure (no frontmatter)
-✅ PASS: log.md uses ISO 8601 date headings, newest first
+A v0.1 bundle remains consumable by a v0.2 consumer: fall back to `timestamp`
+when `generated` is absent and retain legacy citations until replacements are
+complete.
 
-⚠  WARNING: 3 files missing 'description' field (recommended)
-⚠  WARNING: 2 broken cross-links (permitted but worth noting)
-```
+## Consume Safely
 
-For a script-based check, see [scripts/validate.sh](scripts/validate.sh).
+- Treat absent `status` as `stable`.
+- A concept is stale when `now >= stale_after`; compare only timestamps with an
+  explicit offset.
+- Derive trust from `verified`: none is `unverified`, only non-human events is
+  `machine-confirmed`, and any `human:` verifier is `human-reviewed`.
+- Trust tiers are advisory, not authorization or access control.
+- Prefer current, non-deprecated, source-backed concepts, but surface conflicts.
+- Preserve unknown fields and tolerate missing optional families.
+- Do not follow external links or execute referenced resources unless the task
+  requires it and the user has authorized the resulting action.
 
-### Errors (conformance failures)
+## Output
 
-- `E1`: File `{path}` has no YAML frontmatter
-- `E2`: File `{path}` has frontmatter but no `type` field (or empty)
-- `E3`: Reserved file `{path}` has unexpected structure
-
-### Warnings (non-blocking, spec allows these)
-
-- `W1`: Missing recommended field `title` or `description`
-- `W2`: Broken cross-link `{link}` in `{file}`
-- `W3`: No `timestamp` field
-- `W4`: No `index.md` in directory `{dir}`
-- `W5`: `log.md` dates not in ISO 8601 format
-
-Consumers MUST NOT reject a bundle because of: missing optional fields, unknown type values, unknown frontmatter keys, broken links, or missing index files.
-
----
-
-## Enrich Concepts
-
-When the user has existing OKF concepts that need enrichment:
-
-### Add schema section
-
-For data assets, add `# Schema` with a columns table:
-
-```markdown
-# Schema
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `order_id` | STRING | Unique identifier |
-| `customer_id` | STRING | FK to [customers](/tables/customers.md) |
-```
-
-### Add examples section
-
-For APIs, queries, or tools, add `# Examples` with fenced code blocks showing usage.
-
-### Add citations
-
-When claims reference external sources, add `# Citations` at the bottom, numbered:
-
-```markdown
-# Citations
-
-[1] [Official docs](https://example.com/docs)
-[2] [Internal runbook](https://wiki.internal/quality)
-```
-
-Citations may be absolute URLs, bundle-relative paths, or paths into a `references/` subdirectory.
-
-### Add cross-links
-
-Weave links into natural prose. Don't create a standalone "links" section — express relationships in context where they're meaningful.
-
-### Fill recommended fields
-
-If `title`, `description`, `tags`, or `timestamp` are missing, add them. Derive values from body content when possible.
-
-### Enrichment workflow reference
-
-The official enrichment agent follows this pattern — apply the same logic manually:
-1. Start with metadata-only docs (just frontmatter + minimal body)
-2. Add schema/structure from source system
-3. Add citations from authoritative documentation
-4. Weave cross-links based on discovered relationships (FKs, shared tags, join paths)
-5. Generate `index.md` files for progressive disclosure
-
----
-
-## Convert Sources to OKF
-
-For detailed conversion guides, see [references/conversion.md](references/conversion.md).
-
-### Quick rules
-
-**Notion export:** Properties → frontmatter. Remove UUID suffixes from filenames. Convert Notion links → relative markdown links.
-
-**Obsidian vault:** Convert `[[wikilinks]]` → `[title](./file.md)`. Ensure `type` field exists. Move inline `#tags` to frontmatter.
-
-**CSV/spreadsheet:** Each row = one concept. Map columns to frontmatter fields. First column = filename.
-
----
-
-## Guardrails
-
-1. **NEVER invent data.** If you don't know the correct `type`, ask. If you don't have schema info, leave it out. No fabricated URLs or column names.
-2. **Preserve unknown fields.** OKF explicitly allows extension. Don't delete fields you don't recognize.
-3. **Don't impose taxonomy.** Type values are free-form strings. Suggest descriptive values but never reject a bundle for having unexpected types.
-4. **Broken links are OK.** The spec explicitly permits them — they represent not-yet-written knowledge.
-5. **Minimal by default.** Generate only `type` (required) + recommended fields that are warranted. Don't pad with empty values.
-6. **Ask before assuming.** If the domain is unclear, ask what types and structure make sense.
-
----
-
-## Serve via Google Cloud Knowledge Catalog
-
-Google Cloud's Knowledge Catalog **natively ingests OKF bundles** and serves them to agents. This is the enterprise path — optional but powerful.
-
-### kcmd CLI (Metadata as Code)
-
-`kcmd` is a bidirectional sync tool between OKF-like local metadata and Knowledge Catalog. Think "git for metadata."
-
-```bash
-# Initialize from BigQuery dataset
-kcmd init --bigquery-dataset <project>.<dataset>
-
-# Pull current state from catalog
-kcmd pull
-
-# Push local changes
-kcmd push --dry-run
-kcmd push
-```
-
-Also ships as an **MCP server** for agent integration:
-
-```json
-{
-  "mcpServers": {
-    "kc-mac": {
-      "command": "kcmd",
-      "args": ["mcp", "--path", "/path/to/root"]
-    }
-  }
-}
-```
-
-MCP tools: `pull`, `push`, `list-entries`, `lookup-entry`, `modify-entry`.
-
-### Reference Enrichment Agent
-
-The official enrichment agent (Python, ADK, Gemini) auto-generates OKF bundles from BigQuery metadata. Two-pass architecture:
-
-1. **BQ pass** — one OKF doc per table/view from metadata
-2. **Web pass** — LLM crawls seed URLs and for each page decides to:
-   - **(a) Enrich** existing concepts with citations/schemas
-   - **(b) Mint** a new `references/<slug>` doc
-   - **(c) Skip** irrelevant content
-
-Controls: `--web-seed-file`, `--web-max-pages`, `--web-allowed-host`, `--no-web`.
-
-**When to mention this to users:** If they're enriching BigQuery datasets, point them to the [reference agent](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/okf). If they want enterprise catalog integration, point to [kcmd](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/toolbox/mdcode) and the [ingest demo](https://github.com/GoogleCloudPlatform/knowledge-catalog/tree/main/toolbox/mdcode/demo).
-
----
-
-## Output Format
-
-When creating a bundle, present results as:
-
-1. **Directory tree** showing the full structure
-2. **Each file's content** in fenced code blocks
-3. **Conformance check** confirming the bundle passes the 3 rules
-
-```
-saas-metrics/
-├── index.md
-├── log.md
-├── mrr.md
-├── churn.md
-└── nps.md
-```
-
-Then show each file, then confirm: "Bundle is OKF v0.1 conformant ✅"
+For creation or migration, show the resulting tree, changed files, provenance
+or verification facts that could not be established, and validation results.
+Do not claim v0.2 conformance unless the bundle has been validated.

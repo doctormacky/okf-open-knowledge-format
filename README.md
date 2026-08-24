@@ -8,8 +8,8 @@
 
 [English](#english) | [简体中文](#简体中文)
 
-![OKF Spec](https://img.shields.io/badge/OKF-v0.1%20Draft-2563eb)
-![Skill Version](https://img.shields.io/badge/Skill-v1.1-0f766e)
+![OKF Spec](https://img.shields.io/badge/OKF-v0.2-2563eb)
+![Skill Version](https://img.shields.io/badge/Skill-v2.0-0f766e)
 [![License](https://img.shields.io/badge/License-Apache--2.0-d97706)](https://github.com/fabricioctelles/skills/blob/main/LICENSE)
 
 </div>
@@ -17,16 +17,23 @@
 > [!IMPORTANT]
 > **Provenance / 来源说明**
 >
-> The `v0.1` baseline in this repository is reproduced without changes from
+> The original `v0.1` baseline was reproduced without changes from
 > [`fabricioctelles/skills/skills/okf-open-knowledge-format`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format).
-> The five upstream skill files are byte-for-byte identical to upstream commit
-> [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9).
->
-> 本仓库的 `v0.1` 基线原样来自
-> [`fabricioctelles/skills/skills/okf-open-knowledge-format`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format)，
-> 未对 5 个上游 Skill 文件做任何修改；其内容与上游提交
+> That baseline matched upstream commit
 > [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9)
-> 逐字节一致。本 README 仅用于补充项目说明，不属于上游 Skill 内容。
+> byte for byte. The current `v0.2` adaptation is maintained in this repository
+> and targets the official GoogleCloudPlatform OKF 0.2 specification at
+> [`ad30107`](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/ad30107c31c06aec8a7d5636e0d1058118604e6f/SPEC.md);
+> it is no longer an unchanged upstream mirror.
+>
+> 本仓库最初的 `v0.1` 基线原样来自
+> [`fabricioctelles/skills/skills/okf-open-knowledge-format`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format)，
+> 当时 5 个 Skill 文件与上游提交
+> [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9)
+> 逐字节一致。当前 `v0.2` 改造由本仓库维护，并固定适配 GoogleCloudPlatform
+> 官方 OKF 0.2 规范提交
+> [`ad30107`](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/ad30107c31c06aec8a7d5636e0d1058118604e6f/SPEC.md)，
+> 因此已不再是上游文件的原样镜像。
 
 ---
 
@@ -40,17 +47,18 @@ frontmatter. An OKF knowledge bundle is simply a directory tree: it requires no
 SDK, central registry, or proprietary platform.
 
 This repository packages an AI-agent skill that teaches compatible agents how
-to create, validate, enrich, and convert OKF bundles while following the OKF
-v0.1 draft specification.
+to create, validate, enrich, consume, migrate, and convert bundles following
+the official OKF v0.2 specification.
 
 ### What This Skill Does
 
 - Creates conformant OKF bundles and concept documents.
-- Validates required frontmatter, reserved files, and recommended metadata.
-- Enriches existing concepts with schemas, examples, citations, and links.
+- Validates core conformance and selected OKF v0.2 field contracts.
+- Records provenance, trust, freshness, lifecycle, and claim attribution.
+- Authors and reviews optional Attested Computation contracts.
+- Migrates v0.1 `timestamp` and `# Citations` conventions to v0.2.
 - Converts Notion exports, Obsidian vaults, CSV files, and spreadsheets to OKF.
 - Preserves producer-defined metadata and tolerates unknown concept types.
-- Provides guidance for Google Cloud Knowledge Catalog and `kcmd` workflows.
 
 ### Repository Structure
 
@@ -61,9 +69,12 @@ v0.1 draft specification.
 ├── references/
 │   ├── conversion.md         # Source-to-OKF conversion guides
 │   ├── examples.md           # Complete example bundles
-│   └── spec-v01.md           # OKF v0.1 draft specification
-└── scripts/
-    └── validate.sh           # Lightweight OKF conformance validator
+│   └── spec-v02.md           # Pinned OKF v0.2 implementation reference
+├── scripts/
+│   └── validate.sh           # Lightweight OKF conformance validator
+└── tests/
+    ├── fixtures/             # Valid, invalid, and legacy bundles
+    └── test_validate.sh      # Validator regression tests
 ```
 
 ### Installation
@@ -92,9 +103,10 @@ example:
 
 ```text
 Create an OKF bundle for our SaaS metrics.
-Validate this directory against the OKF v0.1 specification.
+Validate this directory against the OKF v0.2 specification.
 Convert this Obsidian vault into an OKF knowledge bundle.
-Enrich these OKF concepts with schemas, citations, and cross-links.
+Migrate this OKF v0.1 bundle to v0.2 without losing provenance.
+Review this Attested Computation contract without executing it.
 ```
 
 To run the bundled lightweight validator directly:
@@ -109,8 +121,8 @@ The validator checks the three core conformance rules:
 2. Every concept has a non-empty `type` field.
 3. Reserved `index.md` and `log.md` files follow their structural rules.
 
-When available, [`okflint`](https://github.com/mattdav/okflint) is recommended
-for deeper validation, including profiles, link resolution, and JSON output.
+Existing OKF linters and profile manifests can provide additional checks, but
+v0.1-era tooling should not be assumed to validate the new v0.2 field families.
 
 ### OKF at a Glance
 
@@ -122,6 +134,10 @@ type: Metric
 title: Monthly Recurring Revenue
 description: Active subscription revenue normalized to a monthly amount.
 tags: [revenue, saas]
+status: draft
+generated:
+  by: human:analyst
+  at: 2026-08-24T10:30:00Z
 ---
 
 # Monthly Recurring Revenue
@@ -129,30 +145,30 @@ tags: [revenue, saas]
 The sum of all active subscriptions normalized to a monthly amount.
 ```
 
-Only `type` is required. Fields such as `title`, `description`, `resource`,
-`tags`, and `timestamp` are recommended or optional. Producers may add custom
-fields, and consumers should preserve fields they do not recognize.
+Only `type` is always required. OKF v0.2 adds optional `sources`, `generated`,
+`verified`, `status`, `stale_after`, and Attested Computation fields. Producers
+may add custom fields, and consumers should preserve fields they do not
+recognize.
 
 ### Documentation
 
 | Document | Purpose |
 | --- | --- |
 | [`SKILL.md`](./SKILL.md) | Complete agent workflow and guardrails |
-| [`references/spec-v01.md`](./references/spec-v01.md) | OKF v0.1 draft specification |
-| [`references/examples.md`](./references/examples.md) | Examples for analytics, incident response, and APIs |
-| [`references/conversion.md`](./references/conversion.md) | Notion, Obsidian, CSV, and spreadsheet conversion guides |
-| [`scripts/validate.sh`](./scripts/validate.sh) | Basic command-line conformance validator |
+| [`references/spec-v02.md`](./references/spec-v02.md) | Pinned OKF v0.2 implementation reference |
+| [`references/examples.md`](./references/examples.md) | Provenance, lifecycle, and attestation examples |
+| [`references/conversion.md`](./references/conversion.md) | v0.1 migration and source conversion guides |
+| [`scripts/validate.sh`](./scripts/validate.sh) | Lightweight v0.2 command-line validator |
 
 ### Version and Provenance
 
 | Item | Value |
 | --- | --- |
-| Repository baseline | `v0.1` |
-| Changes to upstream skill files | None |
-| Upstream source | [`fabricioctelles/skills`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format) |
-| Verified upstream commit | [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9) |
-| OKF specification | `v0.1 Draft` |
-| Skill metadata version | `1.1` |
+| Current OKF target | `v0.2` |
+| Skill metadata version | `2.0` |
+| Official specification | [`ad30107`](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/ad30107c31c06aec8a7d5636e0d1058118604e6f/SPEC.md) |
+| Original source | [`fabricioctelles/skills`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format) |
+| Unmodified v0.1 baseline | [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9) |
 
 ### License
 
@@ -171,17 +187,18 @@ redistributing it.
 AI Agent 的组织知识表示格式。它使用带 YAML Frontmatter 的 Markdown 文件组织
 知识；一个 OKF 知识包就是一棵目录树，不依赖 SDK、中心化注册服务或专有平台。
 
-本仓库提供一个 AI Agent Skill，指导兼容的 Agent 按照 OKF v0.1 草案创建、校验、
-丰富和转换 OKF 知识包。
+本仓库提供一个 AI Agent Skill，指导兼容的 Agent 按照官方 OKF v0.2 规范创建、
+校验、丰富、消费、迁移和转换 OKF 知识包。
 
 ### 主要能力
 
 - 创建符合规范的 OKF 知识包和概念文档。
-- 校验必填 Frontmatter、保留文件以及推荐元数据。
-- 为现有概念补充 Schema、示例、引用和交叉链接。
+- 校验核心合规规则和部分 OKF v0.2 字段契约。
+- 记录来源、信任、新鲜度、生命周期和声明级引用。
+- 创建和审查可选的 Attested Computation 契约。
+- 将 v0.1 的 `timestamp` 和 `# Citations` 迁移到 v0.2。
 - 将 Notion 导出、Obsidian Vault、CSV 和电子表格转换为 OKF。
 - 保留生产方自定义元数据，并兼容未知的概念类型。
-- 提供 Google Cloud Knowledge Catalog 和 `kcmd` 工作流指引。
 
 ### 仓库结构
 
@@ -192,9 +209,12 @@ AI Agent 的组织知识表示格式。它使用带 YAML Frontmatter 的 Markdow
 ├── references/
 │   ├── conversion.md         # 各类数据源到 OKF 的转换指南
 │   ├── examples.md           # 完整知识包示例
-│   └── spec-v01.md           # OKF v0.1 规范草案
-└── scripts/
-    └── validate.sh           # 轻量级 OKF 合规校验脚本
+│   └── spec-v02.md           # 固定版本的 OKF v0.2 实施参考
+├── scripts/
+│   └── validate.sh           # 轻量级 OKF 合规校验脚本
+└── tests/
+    ├── fixtures/             # 合法、非法和旧版知识包
+    └── test_validate.sh      # 校验器回归测试
 ```
 
 ### 安装
@@ -220,9 +240,10 @@ git clone https://github.com/doctormacky/okf-open-knowledge-format.git \
 
 ```text
 为我们的 SaaS 指标创建一个 OKF 知识包。
-按照 OKF v0.1 规范校验这个目录。
+按照 OKF v0.2 规范校验这个目录。
 将这个 Obsidian Vault 转换为 OKF 知识包。
-使用 Schema、引用和交叉链接丰富这些 OKF 概念。
+在不丢失来源信息的前提下，将这个 OKF v0.1 知识包迁移到 v0.2。
+审查这个 Attested Computation 契约，但不要执行它。
 ```
 
 也可以直接运行仓库内置的轻量级校验器：
@@ -237,8 +258,8 @@ git clone https://github.com/doctormacky/okf-open-knowledge-format.git \
 2. 每个概念都包含非空的 `type` 字段。
 3. 保留文件 `index.md` 和 `log.md` 符合各自的结构规则。
 
-如环境允许，建议优先使用 [`okflint`](https://github.com/mattdav/okflint)
-进行更完整的校验，包括 Profile、链接解析和 JSON 输出。
+已有 OKF Linter 和 Profile Manifest 可以提供额外检查，但不能默认旧版工具已经
+覆盖 v0.2 新增的字段族。
 
 ### OKF 最小示例
 
@@ -248,6 +269,10 @@ type: Metric
 title: Monthly Recurring Revenue
 description: Active subscription revenue normalized to a monthly amount.
 tags: [revenue, saas]
+status: draft
+generated:
+  by: human:analyst
+  at: 2026-08-24T10:30:00Z
 ---
 
 # Monthly Recurring Revenue
@@ -255,30 +280,29 @@ tags: [revenue, saas]
 The sum of all active subscriptions normalized to a monthly amount.
 ```
 
-只有 `type` 是必填字段。`title`、`description`、`resource`、`tags` 和
-`timestamp` 属于推荐或可选字段。生产方可以增加自定义字段，消费方应保留无法识别
-的字段。
+只有 `type` 始终是必填字段。OKF v0.2 新增了可选的 `sources`、`generated`、
+`verified`、`status`、`stale_after` 和 Attested Computation 字段。生产方可以
+增加自定义字段，消费方应保留无法识别的字段。
 
 ### 文档索引
 
 | 文档 | 用途 |
 | --- | --- |
 | [`SKILL.md`](./SKILL.md) | 完整的 Agent 工作流与约束规则 |
-| [`references/spec-v01.md`](./references/spec-v01.md) | OKF v0.1 规范草案 |
-| [`references/examples.md`](./references/examples.md) | 分析、故障响应和 API 场景示例 |
-| [`references/conversion.md`](./references/conversion.md) | Notion、Obsidian、CSV 和电子表格转换指南 |
-| [`scripts/validate.sh`](./scripts/validate.sh) | 基础命令行合规校验器 |
+| [`references/spec-v02.md`](./references/spec-v02.md) | 固定版本的 OKF v0.2 实施参考 |
+| [`references/examples.md`](./references/examples.md) | 来源、生命周期和 Attestation 示例 |
+| [`references/conversion.md`](./references/conversion.md) | v0.1 迁移和数据源转换指南 |
+| [`scripts/validate.sh`](./scripts/validate.sh) | 轻量级 v0.2 命令行校验器 |
 
 ### 版本与来源
 
 | 项目 | 内容 |
 | --- | --- |
-| 仓库基线版本 | `v0.1` |
-| 上游 Skill 文件改动 | 无 |
-| 上游来源 | [`fabricioctelles/skills`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format) |
-| 已核对的上游提交 | [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9) |
-| OKF 规范版本 | `v0.1 Draft` |
-| Skill 元数据版本 | `1.1` |
+| 当前适配的 OKF 版本 | `v0.2` |
+| Skill 元数据版本 | `2.0` |
+| 官方规范 | [`ad30107`](https://github.com/GoogleCloudPlatform/open-knowledge-format/blob/ad30107c31c06aec8a7d5636e0d1058118604e6f/SPEC.md) |
+| 最初上游来源 | [`fabricioctelles/skills`](https://github.com/fabricioctelles/skills/tree/main/skills/okf-open-knowledge-format) |
+| 未改动的 v0.1 基线 | [`8d4f71a`](https://github.com/fabricioctelles/skills/commit/8d4f71a188a81855ad96b11254b4d777462baca9) |
 
 ### 许可证
 
